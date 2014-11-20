@@ -33,7 +33,6 @@
 
     if (length(.libPaths() > 1)) .libPaths(.libPaths()[-1])
 
-    install.packages('FRACTION')
     install.packages('animation')
     install.packages('codetools')
     install.packages('xlsx')
