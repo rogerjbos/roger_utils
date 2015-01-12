@@ -4,7 +4,7 @@
 #' @keywords packages
 #' @export
 #' @examples
-#' installAllPakcages()
+#' installAllPackages()
 #' 
 #'
 
@@ -30,7 +30,7 @@
 #' @keywords packages
 #' @export
 #' @examples
-#' installPakcages()
+#' installPackages()
 
 # Install TinnRcom from c:/Tinn-R/package
 "installPackages" <- function() {
