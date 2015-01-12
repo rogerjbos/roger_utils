@@ -1,0 +1,25 @@
+---
+title: "Long Division"
+author: "Roger"
+date: "Monday, November 17, 2014"
+output: html_document
+---
+
+```{r longdiv, eval=TRUE, echo=FALSE, message=FALSE, results='asis'}
+library(xtable)
+
+"longd" <- function(dividend, divisor) { 
+  tmp <- divisor %+% "$\\overline{)" %+% dividend %+% "}$"
+  tmp
+}
+
+n <- 5
+divisors <- sample(3:19, n)
+quotients <- sample(11:199, n)
+dividends <- divisors * quotients
+probs <- longd(dividends, divisors)
+
+
+```
+
+`r probs`

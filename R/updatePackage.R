@@ -5,8 +5,12 @@
 #' @export
 #' @examples
 #' installAllPakcages()
+#' 
+#'
 
-"installAllPakcages" <- function() {
+# Set R_USER environment variable to M:/R_HOME
+
+"installAllPackages" <- function() {
 
     if (length(.libPaths() > 1)) .libPaths(.libPaths()[-1])
 
@@ -29,7 +33,7 @@
 #' installPakcages()
 
 # Install TinnRcom from c:/Tinn-R/package
-"installPakcages" <- function() {
+"installPackages" <- function() {
 
     if (length(.libPaths() > 1)) .libPaths(.libPaths()[-1])
 
@@ -149,5 +153,6 @@
     install_github("slidify", "ramnathv")
     install_github("slidifyLibraries", "ramnathv")
     install_github("runr", "yihui")
+    #install_github("rogerjbos/roger_utils")
 
 }
