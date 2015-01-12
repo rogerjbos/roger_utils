@@ -122,6 +122,8 @@
     install.packages("pander")
     install.packages("rmarkdown")
     install.packages("roxygen2")
+    install.packages("testthat")
+    
 
 #    tmp <- c('FRACTION','animation','codetools','xlsx','yaml','htmltools','rmarkdown',
 #    'shinyapps','installr','plotGoogleMaps','ggmap','xtable','svSocket','formatR',
