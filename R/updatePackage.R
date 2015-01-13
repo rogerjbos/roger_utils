@@ -37,6 +37,13 @@
 
     if (length(.libPaths() > 1)) .libPaths(.libPaths()[-1])
 
+    install.packages('PerformanceAnalytics')
+    install.packages('tm')
+    install.packages('shiny')
+    install.packages('iterators')
+    install.packages('doParallel')
+    install.packages('wordcloud')
+    install.packages('sendmailR')
     install.packages('animation')
     install.packages('codetools')
     install.packages('xlsx')
@@ -44,7 +51,6 @@
     install.packages('htmltools')
     install.packages('rmarkdown')
     install.packages('shinyapps')
-    install.packages('installr')
     install.packages('plotGoogleMaps')
     install.packages('ggmap')
     install.packages('xtable')
@@ -73,7 +79,6 @@
     install.packages('Hmisc')
     install.packages('Rpad')
     install.packages('Defaults')
-    install.packages('PerformanceAnalytics')
     install.packages('chron')
     install.packages('lattice')
     install.packages('survival')
@@ -119,25 +124,10 @@
     install.packages("slam")
     install.packages("kernlab")
     install.packages("rneos")
-    install.packages("pander")
-    install.packages("rmarkdown")
     install.packages("roxygen2")
+    install.packages("FinancialInstrument")
     install.packages("testthat")
     
-
-#    tmp <- c('FRACTION','animation','codetools','xlsx','yaml','htmltools','rmarkdown',
-#    'shinyapps','installr','plotGoogleMaps','ggmap','xtable','svSocket','formatR',
-#    'knitr','Rook','rpart','survival','rJava','RGtk2','Rsolnp','Rcpp','lubridate',
-#    'timeDate','tseries','ggplot2','corpcor','RODBC','quadprog','fortunes','R2HTML',
-#    'prettyR','rgenoud','randomForest','Hmisc','Rpad','Defaults','PerformanceAnalytics',
-#    'chron','lattice','survival','svIDE','lattice','multic','pnmath','dplyr','financial',
-#    'XLConnect','quantmod','timeSeries','XML','Hmisc','sqldf','RCurl','rbenchmark',
-#    'Cairo','scrapeR','SciViews','foreach','snow','zoo','survival','arules','party',
-#    'plotrix','devtools','Quandl','softImpute','WDI','countrycode','DEoptim','DEoptimR',
-#    'pa',"TTR","lattice","digest","Rcpp","plyr","e1071","sn","slam","kernlab","rneos",
-#    "pander","rmarkdown","roxygen2")
-#    for (pac in seq_along(tmp)) eval(substitute(try(install.packages(target)), list(target = as.name(tmp[pac]))))
-
     install.packages("xts", repos="http://R-Forge.R-project.org", dependencies = TRUE)
     install.packages("PortfolioAnalytics", repos="http://R-Forge.R-project.org", dependencies = TRUE)
     install.packages("FactorAnalytics", repos="http://R-Forge.R-project.org", dependencies = TRUE)
@@ -149,12 +139,13 @@
     install.packages("NMOF",repos="http://R-Forge.R-project.org", dependencies = TRUE)
     install.packages("fPortfolio",repos="http://R-Forge.R-project.org", dependencies = TRUE)
     install.packages("fAssets",repos="http://R-Forge.R-project.org", dependencies = TRUE)
-    install.packages("knitr",repos="http://R-Forge.R-project.org", dependencies = TRUE)
-
-    install_github("knitcitations", "cboettig")
-    install_github("slidify", "ramnathv")
-    install_github("slidifyLibraries", "ramnathv")
-    install_github("runr", "yihui")
+    
+    library(devtools)
+    install_github("ramnathv/slidify")
+    install_github("ramnathv/slidifyLibraries")
+    install_github("yihui/runr")
+    install_github("IlyaKipnis/DSTrading")
+    install_github("IlyaKipnis/IKTrading")
     #install_github("rogerjbos/roger_utils")
 
 }
