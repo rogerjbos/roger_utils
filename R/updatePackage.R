@@ -127,6 +127,8 @@
     install.packages("roxygen2")
     install.packages("FinancialInstrument")
     install.packages("testthat")
+    install.packages("manipulate")
+    
     
     install.packages("xts", repos="http://R-Forge.R-project.org", dependencies = TRUE)
     install.packages("PortfolioAnalytics", repos="http://R-Forge.R-project.org", dependencies = TRUE)

@@ -1,0 +1,50 @@
+#!/bin/bash
+
+local list_of_packages
+local -a missing_packages
+local -a packages_to_get=(
+    'curl'
+    'google-chrome-stable'
+    'rails3'
+    'scala'
+    'ruby1.9.3'
+    'scala-doc'
+    'git'
+    'mercurial'
+    'python-pip'
+    'pandoc'
+    'Abiword'
+    'Apache'
+    'Blender'
+    'Dia'
+    'DOSEMU'
+    'Evolution'
+    'Kaffeine'
+    'rCalc'
+    'Rosegarden'
+    'WINE'
+    'Xfig'
+    'xpad'
+    'Xpdf'
+    'Zope'
+    'linux-headers-generic'
+)
+
+for index in ${!packages_to_get[*]}
+do
+    if ! package_installed ${packages_to_get[$index]}; then
+        missing_packages=("${missing_packages[@]}" "${packages_to_get[$index]}")
+    fi
+done
+
+if [[ "$missing_packages" ]]; then
+    # Convert list to space-delimited string
+    list_of_packages=$( printf "%s " "${missing_packages[@]}" )
+
+    e_header "Installing missing packages"
+
+    sudo apt-get install --install-suggests -f -y $list_of_packages
+
+    [[ $? ]] && e_success "Done"
+
+fi
