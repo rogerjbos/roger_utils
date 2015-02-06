@@ -1,0 +1,507 @@
+---
+title: "Random Matrix Theory: updated `r format(Sys.time(), '%m/%d/%Y')`"
+output:
+  html_document:
+    theme: cerulean
+    highlight: null
+    css: null
+    fig_width: 1
+    fig_height: 1
+    fig_caption: true
+    toc: true
+    toc_depth: 2
+
+---
+
+```{r init, eval=TRUE, echo=FALSE, error=FALSE, warning=FALSE, message=FALSE, fig.width=7, fig.height=5}
+
+#getwd()
+#setwd("//rinnycs0051/research/R_HOME_Research/Markdown/Random Matrix Theory/")
+#render("RMT.Rmd")
+library(DEoptim)
+library(tawny)
+library(quantmod)
+library("PerformanceAnalytics")
+library("PortfolioAnalytics")
+
+"filter.RMT" <- function (x, trace = TRUE, doplot = TRUE) {
+  mp.hist <- mp.density.kernel(x, adjust = 0.2, kernel = "e", doplot = doplot)
+  mp.result <- DEoptim(fn = mp.fit.kernel, lower = c(Q = 0,
+      sigma = 0.2), upper = c(10, 10), control = list(itermax = 200, trace=FALSE),
+      hist = mp.hist)
+  mp.Q <- mp.result$optim$bestmem[1]
+  mp.sigma <- mp.result$optim$bestmem[2]
+  if (trace) print(c(mp.Q, mp.sigma))
+  if (doplot) rho <- mp.theory(mp.Q, mp.sigma)
+  lambda <- mp.hist$values[1]
+  sigma <- sqrt(1 - lambda/length(mp.hist$values))
+  lambda.plus <- sigma*sigma * (1 + 1/mp.Q + 2*sqrt(1/mp.Q))
+
+  ans = denoise(mp.hist, lambda.plus, x)
+  if (trace) {
+    cat("Upper cutoff (lambda.max) is", round(lambda.plus, 2), "\n")
+    cat("Variance is", round(sigma, 2), "\n")
+    cat("Greatest eigenvalue is", round(lambda, 2), "\n")
+  }
+  ans
+}
+
+
+"colSdColMeans" <- function(x, na.rm=TRUE) {
+  if (na.rm) {
+    n <- colSums(!is.na(x))
+  } else {
+    n <- nrow(x)
+  }
+  colVar <- colMeans(x*x, na.rm=na.rm) - (colMeans(x, na.rm=na.rm))^2
+  return(sqrt(colVar * n/(n-1)))
+}
+
+"mp.density.kernel" <- function (x, adjust = 0.2, kernel = "e", doplot = TRUE, ...) {
+  e <- cov2cor(cov(x/colSdColMeans(x)))
+  lambda <- eigen(e, symmetric = TRUE, only.values = FALSE)
+  ds <- density(lambda$values, adjust = adjust, kernel = kernel, ...)
+  ds$adjust <- adjust
+  ds$kernel <- kernel
+  ds$values <- lambda$values
+  ds$vectors <- lambda$vectors
+  if (doplot) plot(ds, xlim = c(0, max(ds$values) * 1.2), main = "Eigenvalue Distribution")
+  return(ds)
+}
+
+"mp.rho" <- function (mp.Q, sigma, e.values) {
+  l.min <- sigma*sigma * (1 + 1/mp.Q - 2*sqrt(1/mp.Q))
+  l.max <- sigma*sigma * (1 + 1/mp.Q + 2*sqrt(1/mp.Q))
+  k <- (mp.Q/2 * pi * sigma^2)
+  rho <- k * sqrt(pmax(0, (l.max - e.values) * (e.values - l.min)))/e.values
+  rho[is.na(rho)] <- 0
+  attr(rho, "e.values") <- e.values
+  rho
+}
+
+"mp.lambdas" <- function (Q, sigma, steps, trace = FALSE) {
+  l.min <- sigma*sigma * (1 + 1/mp.Q - 2*sqrt(1/mp.Q))
+  l.max <- sigma*sigma * (1 + 1/mp.Q + 2*sqrt(1/mp.Q))
+  if (trace) {
+    cat("Min eigenvalue:", l.min, "\n")
+    cat("Max eigenvalue:", l.max, "\n")
+  }
+  evs <- seq(round(l.min - 1), round(l.max + 1), (l.max - l.min)/steps)
+  evs[evs < l.min] <- l.min
+  evs[evs > l.max] <- l.max
+  if (trace) {
+    cat("eigenvalues: ", evs, "\n")
+  }
+  evs
+}
+
+"mp.fit.kernel" <- function (ps, hist) {
+  BIG <- 100000000000000
+  zeros <- which(hist$y == 0)
+  wholes <- which(hist$y > 0)
+  after <- head(zeros[zeros > wholes[1]], 1)
+  l.plus <- hist$x[after]
+  Q <- ps[1]
+  sigma <- ps[2]
+  rhos <- mp.rho(Q, sigma, hist$x)
+  if (max(rhos) == 0) return(BIG)
+  scale <- max(rhos)/max(hist$y) + 0.25
+  whole.idx <- head(rhos[rhos > 0], 1)
+  hist$y <- c(rep(0, whole.idx - 1), tail(hist$y, length(hist$y) - whole.idx + 1))
+  norm.factor <- sum(rhos[hist$x <= l.plus])
+  hist$y <- hist$y[1:length(rhos)]
+  dy <- (rhos - (hist$y * scale))/norm.factor
+  dist <- as.numeric(dy %*% dy)
+  if (is.na(dist)) dist = BIG
+  dist
+}
+
+"mp.theory" <- function (Q, sigma, e.values = NULL, steps = 200) {
+  if (is.null(e.values)) e.values <- mp.lambdas(Q, sigma, steps)
+  rho <- mp.rho(Q, sigma, e.values)
+  if (length(e.values) > 1) {
+    l.min <- sigma*sigma * (1 + 1/mp.Q - 2*sqrt(1/mp.Q))
+    l.max <- sigma*sigma * (1 + 1/mp.Q + 2*sqrt(1/mp.Q))
+    xs <- seq(round(l.min - 1), round(l.max + 1), (l.max - l.min)/steps)
+    main <- paste("Marcenko-Pastur Distribution for Q", round(Q, 1), "and sigma", round(sigma,1))
+    plot(xs, rho, xlim = c(0, 6), type = "l", main = main)
+  }
+  rho
+}
+
+"denoise" <- function (hist, lambda.plus = 1.6, x = NULL) {
+  e.values <- hist$values
+  avg <- mean(e.values[e.values < lambda.plus])
+  e.values[e.values < lambda.plus] <- avg
+  e.vectors <- hist$vectors
+  clean <- e.vectors %*% diag(e.values) %*% t(e.vectors)
+  diags <- diag(clean) %o% rep(1, nrow(clean))
+  clean <- clean/sqrt(diags * t(diags))
+  if (!is.null(x)) {
+    rownames(clean) <- colnames(x)
+    colnames(clean) <- colnames(x)
+  }
+  clean
+}
+
+
+"obj_cvar" <- function(w) {
+    if (sum(w) == 0) w <- w + 1e-2
+    w <- w / sum(w)
+    CVaR <- ES(weights = w,
+    method = "gaussian",
+    portfolio_method = "component",
+    mu = mu,
+    sigma = sigma)
+    tmp1 <- CVaR$ES
+    tmp2 <- max(CVaR$pct_contrib_ES - 0.05, 0)
+    out <- tmp1 + 1e3 * tmp2
+    return(out)
+}
+
+"optimizeDE" <- function(mu, sigma, obj="obj_cvar") {
+    N <- length(mu)
+    minw <- 0
+    maxw <- 1
+    lower <- rep(minw,N)
+    upper <- rep(maxw,N)
+
+    weight_seq <- generatesequence(min=minw, max=maxw, by=.001, rounding=3)
+    port <- portfolio.spec(assets=names(mu), weight_seq=weight_seq)
+    port <- portfolio.spec(assets=names(mu))
+    port <- add.constraint(portfolio = port, type="full_investment")
+    port <- add.constraint(portfolio = port, type="long_only")
+
+    set.seed(1234)
+    rp <- random_portfolios_v2(portfolio=port, permutations=N*10)
+    if (nrow(rp) < N*10) rp <- random_portfolios_v2(portfolio=port, permutations=N*100)
+    rp <-rp / rowSums(rp)
+
+    controlDE <- list(reltol=.000001,
+                      steptol=150,
+                      itermax = 5000,
+                      trace = 250,
+                      NP = as.numeric(nrow(rp)),
+                      initialpop=rp)
+    out <- DEoptim(fn = obj, lower = lower, upper = upper, control = controlDE)
+    w <- out$optim$bestmem
+    names(w) <- names(mu)
+    w <- w / sum(w)
+    w
+}
+
+```
+
+### Random Matrix Theory
+
+This ian an annotated version of [RANDOM MATRIX THEORY AND FINANCIAL CORRELATIONS](http://math.nyu.edu/faculty/avellane/LalouxPCA.pdf)
+
+by LAURENT LALOUX, PIERRE CIZEAU and MARC POTTERS.
+
+
+
+We show that results from the theory of random matrices are potentially of great interest
+to understand the statistical structure of the empirical correlation matrices appearing
+in the study of multivariate financial time series. We find a remarkable agreement between
+the theoretical prediction (based on the assumption that the correlation matrix is
+random) and empirical data concerning the density of eigenvalues associated to the time
+series of the different stocks of the S&P500 (or other major markets). Finally, we give
+a specific example to show how this idea can be sucessfully implemented for improving
+risk management.
+
+Empirical correlation matrices are of great importance for risk management and
+asset allocation. The probability of large losses for a certain portfolio or option
+book is dominated by correlated moves of its different constituents – for example,
+a position which is simultaneously long in stocks and short in bonds will be risky
+because stocks and bonds usually move in opposite directions in crisis periods. The
+study of correlation (or covariance) matrices thus has a long history in finance and
+is one of the cornerstone of Markowitz’s theory of optimal portfolios: given a
+set of financial assets characterized by their average return and risk, what is the
+optimal weight of each asset, such that the overall portfolio provides the best return
+for a fixed level of risk, or conversely, the smallest risk for a given overall return?
+
+More precisely, the average return RP of a portfolio P of N assets is defined
+as RP = N
+i=1 piRi, where pi (i = 1, · · ·,N) is the amount of capital invested in
+the asset i, and {Ri} are the expected returns of the individual assets. Similarly,
+the risk on a portfolio can be associated to the total variance s2P
+= N
+i,j=1 piCijpj
+where C is the covariance matrix. The optimal portfolio, which minimizes s2P
+for
+a given value of RP , can easily be found introducing a Lagrange multiplier, and
+leads to a linear problem where the matrix C has to be inverted. In particular, the
+composition of the least risky portfolio has a large weight on the eigenvectors of C
+with the smallest eigenvalues 1,2.
+
+However, a reliable empirical determination of a correlation matrix turns out
+to be difficult. For a set of N different assets, the correlation matrix contains
+N(N - 1)/2 entries, which must be determined from N time series of length T ;
+if T is not very large compared to N, one should expect that the determination
+of the covariances is noisy, and therefore that the empirical correlation matrix is
+to a large extent random. In this case, the structure of the matrix is dominated
+by measurement noise, therefore one should be very careful when using this correlation
+matrix in applications. In particular, as we shall show below, the smallest
+eigenvalues of this matrix are the most sensitive to this ‘noise’, the corresponding
+eigenvectors being precisely the ones that determine the least risky portfolios. It
+is thus important to devise methods which allows one to distinguish ‘signal’ from
+‘noise’, i.e. eigenvectors and eigenvalues of the correlation matrix containing real
+information (which one would like to include for risk control), from those which are
+devoid of any useful information, and, as such, unstable in time. From this point of
+view, it is interesting to compare the properties of an empirical correlation matrix
+C to a ‘null hypothesis’ purely random matrix as one could obtain from a finite time
+series of strictly independent assets. Deviations from the random matrix case might
+then suggest the presence of true information. The theory of Random Matrices has
+a long history since the fifties 3, and many results are known 4. As shown below,
+these results are also of genuine interest in a financial context (see 5,6,7).
+
+The empirical correlation matrix C is constructed from the time series of price
+changes dxi(t) (where i labels the asset and t the time) through the equation:
+Cij =
+1
+T
+T
+
+t=1
+dxi(t)dxj (t). (0.1)
+
+We can symbolically write Eq. (0.1) as C= 1/TM MT, where M is a N ×
+T rectangular matrix, and T denotes matrix transposition. The null hypothesis
+of independent assets, which we consider now, translates itself in the assumption
+that the coefficients Mit = dxi(t) are independent, identically distributed, random
+variables b, the so-called random Wishart matrices or Laguerre ensemble of the
+Random Matrix theory8,10. We will note ?C(?) the density of eigenvalues of C,
+defined as:
+?C(?) =
+1
+N
+dn(?)
+d?
+, (0.2)
+where n(?) is the number of eigenvalues of C less than ?.
+
+Interestingly, ifMis a T ×N random matrix, ?C(?) is self-averaging and exactly
+known in the limit N ?8, T ?8 and Q = T/N = 1 fi xed 8,9, and reads:
+?C(?) = Q
+2ps2
+(?max - ?)(? - ?min)
+?
+,
+?max
+min = s2(1 + 1/Q ± 21/Q), (0.3)
+with ? ? [?min, ?max], and where s2 is equal to the variance of the elements of M
+9, equal to 1 with our normalisation. In the limit Q = 1 the normalised eigenvalue
+aIn the following we assume that the average value of the dx’s has been subtracted off, and that
+the dx’s are rescaled to have a constant unit volatility s2 = dx2i
+ = 1.
+bNote that even if the ‘true’ correlation matrix Ctrue is the identity matrix, its empirical determination
+from a finite time series will generate non trivial eigenvectors and eigenvalues, see
+8,9.
+Random matrix theory and financial correlations 3
+0 20 40 60
+?
+0
+2
+4
+6
+?(?)
+0 1 2 3
+?
+0
+2
+4
+6
+?(?)
+Market
+
+density of the matrix M is the well known Wigner semi-circle law, and the corresponding
+distribution of the square of these eigenvalues (that is, the eigenvalues of
+C) is then indeed given by (0.3) for Q = 1. The most important features predicted
+by Eq. (0.3) are:
+• the fact that the lower ‘edge’ of the spectrum is strictly positive (except for
+Q = 1); there is therefore no eigenvalues between 0 and ?min. Near this edge,
+the density of eigenvalues exhibits a sharp maximum, except in the limit Q = 1
+(?min = 0) where it diverges as ~ 1/
+v
+?.
+• the density of eigenvalues also vanishes above a certain upper edge ?max.
+
+> Figure 1: Smoothed density of the eigenvalues of C, where the correlation matrix
+C is extracted from N = 406 assets of the S&P500 during the years 1991-1996. For
+comparison we have plotted the density Eq. (6) for Q = 3.22 and s2 = 0.85: this
+is the theoretical value obtained assuming that the matrix is purely random except
+for its highest eigenvalue (dotted line). A better fit can be obtained with a smaller
+value of s2 = 0.74 (solid line), corresponding to 74% of the total variance. Inset:
+same plot, but including the highest eigenvalue corresponding to the ‘market’, which
+is found to be 25 times greater than ?max.
+
+Note that the above results are only valid in the limit N ? 8. For finite N,
+the singularities present at both edges are smoothed: the edges become somewhat
+blurred, with a small probability of finding eigenvalues above ?max and below ?min,
+which goes to zero when N becomes large. The precise way in which these edges
+become sharp in the large N limit is actually known 11.
+
+Now, we want to compare the empirical distribution of the eigenvalues of the
+correlation matrix of stocks corresponding to different markets with the theoretical
+prediction given by Eq. (0.3), based on the assumption that the correlation matrix
+4 Random matrix theory and financial correlations
+is purely random. We have studied numerically the density of eigenvalues of the
+correlation matrix of N = 406 assets of the S&P 500, based on daily variations
+during the years 1991-96, for a total of T = 1309 days (the corresponding value of
+Q is 3.22).
+
+An immediate observation is that the highest eigenvalue ?1 is 25 times larger
+than the predicted ?max – see Fig. 1, inset. The corresponding eigenvector is,
+as expected, the ‘market’ itself, i.e. it has roughly equal components on all the N
+stocks. The simplest ‘pure noise’ hypothesis is therefore clearly inconsistent with the
+value of ?1. A more reasonable idea is that the components of the correlation matrix
+which are orthogonal to the ‘market’ is pure noise. This amounts to subtracting the
+contribution of ?max from the nominal value s2 = 1, leading to s2 = 1-?max/N =
+0.85. The corresponding fit of the empirical distribution is shown as a dotted
+line in Fig. 1. Several eigenvalues are still above ?max and might contain some
+information, thereby reducing the variance of the effectively random part of the
+correlation matrix. One can therefore treat s2 as an adjustable parameter. The
+best fit is obtained for s2 = 0.74, and corresponds to the dark line in Fig. 1,
+which accounts quite satisfactorily for 94% of the spectrum, while the 6% highest
+eigenvalues still exceed the theoretical upper edge by a substantial amount. Note
+that still a better fit could be obtained by allowing for a slightly smaller effective
+value of Q, which could account for the existence of volatility correlations 12.
+
+We have repeated the above analysis on different markets, including volatility
+markets, and found very similar results 6.
+
+In a first approximation, the location of the theoretical edge, determined by
+fitting the part of the density which contains most of the eigenvalues, allows one to
+distinguish ‘information’ from ‘noise’. However, a more precise procedure can be
+applied, where the finite N effects are adequately treated, using the results of 11,
+and where the effect of variability in s2 for the different assets can be addressed.
+
+This idea can be used in practice to reduce the real risk of optimized portfolios.
+Since the eigenstates corresponding to the ‘noise band’ are not expected to
+contain real information, one should not distinguish the different eigenvalues and
+eigenvectors in this sector. This amounts to replacing the restriction of the empirical
+correlation matrix to the noise band subspace by the identity matrix with a
+coefficient such that the trace of the matrix is conserved (i.e. suppressing the measurement
+broadening due to a finite T ). This ‘cleaned’ correlation matrix, where
+the noise has been (at least partially) removed, is then used to construct an optimal
+portfolio. We have implemented this idea in practice as follows. Using the same
+data sets as above, the total available period of time has been divided into two equal
+subperiods. We determine the correlation matrix using the first subperiod, ‘clean’
+it, and construct the family of optimal portfolios and the corresponding efficient
+frontiers. Here we assume that the investor has perfect predictions on the future
+average returns Ri, i.e. we take for Ri the observed return on the next subperiod.
+Random matrix theory and financial correlations 5
+0 10 20 30
+Risk
+0
+50
+100
+150
+Return
+Figure 2: Efficient frontiers from Markovitz optimisation, in the return vs. volatility
+plane. The leftmost dotted curve correspond to the classical Markovitz case using
+the empirical correlation matrix. The rightmost short-dashed curve is the realisation
+of the same portfolio in the second time period (the risk is underestimated by a
+factor of 3!). The central curves (plain and long-dashed) represents the case of
+cleaned correlation matrix. The realized risk is now only a factor 1.5 larger than
+the predicted risk.
+0 200 400
+0
+0.2
+0.4
+0.6
+0.8
+1
+0 20 40 60 80 100
+Rank
+0
+0.2
+0.4
+0.6
+0.8
+1
+Overlap
+Figure 3: Eigenvector overlap between the two time periods, as a function of the
+rank n. After rankn = 10 (corresponding to the upper edge of the noise band ?max),
+the overlap reaches the noise level 1/(N). Inset: Plot of the same quantity in the
+full range.
+6 Random matrix theory and financial correlations
+The results are shown in Fig. 2 : one sees very clearly that using the empirical
+correlation matrix leads to a dramatic underestimation of the real risk, by overinvesting
+in artificially low-risk eigenvectors. The risk of the optimized portfolio
+obtained using a cleaned correlation matrix is more reliable, although the real risk
+is always larger than the predicted one. This comes from the fact that any amount
+of uncertainty in the correlation matrix produces, through the very optimisation
+procedure, a bias towards low-risk portfolios. This can be checked by permuting
+the two subperiods: one then finds nearly identical efficent frontiers. (This is expected,
+since for large correlation matrices these frontiers should be self-averaging.)
+In other words, even if the cleaned correlation matrices are more stable in time than
+the empirical correlation matrices, there appears to be a genuine time dependence
+in the structure of the meaningful correlations. This is illustrated in Fig. 3 , where
+we have plotted the scalar product (or ‘overlap’) of the nth eigenvector for the two
+subperiods, as a function of the rank n. One can see very clearly that this overlap
+decreases with n and falls below the noise level 1/
+v
+N when the corresponding
+eigenvalue hits the upper edge of the noise band, for n  10. It would be very
+interesting to study in greater details the dynamics of these eigenmodes out of the
+‘noise-band’.
+To summarise, we have shown that results from the theory of random matrices is
+of great interest to understand the statistical structure of the empirical correlation
+matrices. The central result of the present study is the remarkable agreement
+between the theoretical prediction and empirical data concerning both the density
+of eigenvalues and the structure of eigenvectors of the empirical correlation matrices
+corresponding to several major stock markets. Indeed, in the case of the S&P 500,
+94% of the total number of eigenvalues fall in the region where the theoretical
+formula (0.3) applies. Hence, less than 6% of the eigenvectors which are responsible
+of 26% of the total volatility, appear to carry some information. This method
+might be very useful to extract the relevant correlations between financial assets
+of various types, with interesting potential applications to risk management and
+portfolio optimisation. We have given a concrete application of this idea, and have
+shown that the estimate of future risks on optimized portfolios is substantially
+improved. An interesting avenue is the study of the temporal evolution of the
+‘meaningful’ eigenstates.
+
+
+```{r getData, eval=TRUE, echo=TRUE, error=FALSE, warning=FALSE, message=FALSE, fig.width=7, fig.height=5}
+
+#Symbols <- c("XOM","MSFT","JNJ","GE","CVX","WFC","PG","JPM","VZ","PFE",
+#             "T","IBM","MRK","BAC","DIS","ORCL","INTC","SLB")
+Symbols <- c("RWR","EWX","GXC","EPI","EWG")
+# create environment to load data into
+Data <- new.env()
+getSymbols(c("^GSPC",Symbols), from="2007-01-01", env=Data)
+# dailyReturn uses close prices, so use TTR::ROC on the Adjusted column
+# calculate returns, merge, and create data.frame (eapply loops over all
+# objects in an environment, applies a function, and returns a list)
+Returns <- eapply(Data, function(s) ROC(Ad(s), type="discrete"))
+ReturnsDF <- as.data.frame(do.call(merge, Returns))
+# adjust column names are re-order columns
+colnames(ReturnsDF) <- gsub(".Adjusted","",colnames(ReturnsDF))
+ReturnsDF <- ReturnsDF[,c("GSPC",Symbols)]
+idx <- !is.na(ReturnsDF[,1])
+ReturnsDF <- ReturnsDF[idx, ]
+head(ReturnsDF)
+
+# Empirical (Sample) correlation matrix
+sampl <- cov2cor(cov(ReturnsDF))
+mu <- colMeans(ReturnsDF)
+w <- optimizeDE(mu, sampl)
+stdevs <- colSdColMeans(ReturnsDF)
+key <- cov(ReturnsDF)
+sampl.cov <- stdevs %*% t(stdevs) * sampl
+risk.Empirical <- sqrt(t(w) %*% sampl.cov %*% w)
+all.equal(key, sampl.cov)
+
+
+# Random Matrix Theory Cleaned correlation matrix
+clean <- filter.RMT(ReturnsDF, trace=FALSE, doplot=FALSE)
+head(clean)
+w <- optimizeDE(mu, clean)
+stdevs <- colSdColMeans(ReturnsDF)
+clean.cov <- stdevs %*% t(stdevs) * clean
+risk.RMT <- sqrt(t(w) %*% clean.cov %*% w)
+
+```
+
+

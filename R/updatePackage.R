@@ -5,7 +5,7 @@
 #' @export
 #' @examples
 #' installAllPackages()
-#' 
+#'
 #'
 
 # Set R_USER environment variable to M:/R_HOME
@@ -128,7 +128,23 @@
     install.packages("FinancialInstrument")
     install.packages("testthat")
     install.packages("manipulate")
-    
+    install.packages("Quandl")
+    install.packages("leaflet")
+    install.packages("dygraphs")
+    install.packages("metricsgraphics")
+    install.packages("networkD3")
+    install.packages("inline")
+    install.packages("pryr")
+    install.packages("microbenchmark")
+    install.packages("png")
+    install.packages("tawny")
+    install.packages("tawny.types")
+    install.packages("ecodist")
+    install.packages("mvnormtest")
+    install.packages("energy")
+    install.packages("stringdist")
+
+
     
     install.packages("xts", repos="http://R-Forge.R-project.org", dependencies = TRUE)
     install.packages("PortfolioAnalytics", repos="http://R-Forge.R-project.org", dependencies = TRUE)
@@ -141,13 +157,20 @@
     install.packages("NMOF",repos="http://R-Forge.R-project.org", dependencies = TRUE)
     install.packages("fPortfolio",repos="http://R-Forge.R-project.org", dependencies = TRUE)
     install.packages("fAssets",repos="http://R-Forge.R-project.org", dependencies = TRUE)
-    
+
     library(devtools)
     install_github("ramnathv/slidify")
     install_github("ramnathv/slidifyLibraries")
     install_github("yihui/runr")
     install_github("IlyaKipnis/DSTrading")
     install_github("IlyaKipnis/IKTrading")
+    install_github("rstudio/DT")
+    install_github("bwlewis/rthreejs")
+    install_github("hadley/bookdown")
+    install_github("adley/lineprof")
+    install_github("hrbrmstr/metricsgraphics")
+    
+    
     #install_github("rogerjbos/roger_utils")
 
 }
