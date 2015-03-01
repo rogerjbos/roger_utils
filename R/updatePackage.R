@@ -9,6 +9,8 @@
 #'
 
 # Set R_USER environment variable to M:/R_HOME
+# Need to set this options to get install_github to work on linux
+options(unzip = 'internal')
 
 "installAllPackages" <- function() {
 
